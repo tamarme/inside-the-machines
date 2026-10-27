@@ -1,6 +1,6 @@
 # Inside the Machine
 
-Phase 1 of [insidethemachines.com](https://insidethemachines.com): a portfolio for an engineering visualization studio. Built with Next.js App Router, React, strict TypeScript, and Tailwind CSS. The homepage presents original turbocharger artwork, six original animation thumbnails with on-demand YouTube playback, the studio's approach, and an email contact action.
+Phase 1 of [insidethemachines.com](https://www.insidethemachines.com): a portfolio for an engineering visualization studio. Built with Next.js App Router, React, strict TypeScript, and Tailwind CSS. The homepage presents original turbocharger artwork, six original animation thumbnails with on-demand YouTube playback, the studio's approach, and an email contact action.
 
 No backend, database, application analytics, contact form is included. YouTube resources load only after a visitor opens a video.
 
@@ -124,6 +124,8 @@ The website runs as an independent Railway service connected to this repository.
 - Railway project/service: `inside-the-machines`, production environment, connected to `tamarme/inside-the-machines` on `main`.
 - GitHub pushes to `main` trigger deployment. Railway checks `/` before routing traffic to a new deployment.
 - GoDaddy retains DNS and email records; the `www` CNAME and Railway ownership TXT records connect the website. Do not replace mail-related DNS entries when changing website hosting.
+
+The GitHub Railway App must include `tamarme/inside-the-machines` in its selected repositories for automatic deployments to work. Keep access scoped to selected repositories. In GoDaddy, `www` points to `8bxduurp.up.railway.app`; the apex uses permanent (301) forwarding to `https://www.insidethemachines.com`. Keep the Railway verification TXT record at `_railway-verify.www`. If moving to another Railway service, obtain its current DNS values from Railway before editing these records.
 
 1. Create an independent Railway service connected to this repository.
 2. Use Node.js 24 and `npm ci` for dependency installation.
