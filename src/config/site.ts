@@ -10,7 +10,7 @@ export interface SocialLink extends SiteLink {
 export const siteConfig = {
   name: "Inside the Machine",
   wordmark: { prefix: "INSIDE THE", emphasis: "MACHINE" },
-  url: "https://insidethemachines.com",
+  url: "https://www.insidethemachines.com",
   description:
     "Precise, cinematic 3D animation that brings complex mechanical systems to life. Engineering visualization by Inside the Machine.",
   email: "contact@insidethemachines.com",

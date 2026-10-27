@@ -118,6 +118,12 @@ If React reports extra `<body>` attributes named `data-new-gr-c-s-check-loaded` 
 
 The website runs as an independent Railway service connected to this repository. Node.js 24 is pinned in `package.json`; Railpack detects the build and start scripts. Deployment configuration:
 
+- Production address: `https://www.insidethemachines.com`.
+- The apex domain `insidethemachines.com` forwards permanently to the `www` address through GoDaddy.
+- Railway project/service: `inside-the-machines`, production environment, connected to `tamarme/inside-the-machines` on `main`.
+- GitHub pushes to `main` trigger deployment. Railway checks `/` before routing traffic to a new deployment.
+- GoDaddy retains DNS and email records; the `www` CNAME and Railway ownership TXT records connect the website. Do not replace mail-related DNS entries when changing website hosting.
+
 1. Create an independent Railway service connected to this repository.
 2. Use Node.js 24 and `npm ci` for dependency installation.
 3. Set the build command to `npm run build` and start command to `npm start`.
