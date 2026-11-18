@@ -2,7 +2,7 @@
 
 Public website for [insidethemachines.com](https://www.insidethemachines.com): a portfolio for an engineering visualization studio. Built with Next.js App Router, React, strict TypeScript, and Tailwind CSS. The homepage presents original turbocharger artwork, six original animation thumbnails with on-demand YouTube playback, social community links, the studio's perspective, and commercial collaboration opportunities. Separate work, partnerships, and audience-insights pages share the same design system.
 
-No database, authentication, tracking analytics, or contact form is included. Optional audience statistics are read on the server through a scoped Meta adapter or an approved Athena aggregate endpoint. YouTube resources load only after a visitor opens a video.
+No database, authentication, tracking analytics, or contact form is included. Optional audience statistics are read on the server through scoped Meta and YouTube adapters or an approved Athena aggregate endpoint. The portfolio player loads on demand.
 
 ## Local development
 
@@ -61,7 +61,7 @@ Navigation is centralized in site.ts and works from every route. The header rema
 
 ## Audience statistics
 
-See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and remaining live checks. Direct Meta mode reuses only the owner-authorized Inside the Machine credentials in an ignored local environment file. It reads followers and supported account insights; unsupported or denied fields remain unavailable. YouTube reuses the existing channel OAuth connection for subscriber and all-time channel view counts. TikTok is temporarily hidden from the media-kit cards.
+See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and remaining live checks. Direct Meta mode reuses only the owner-authorized Inside the Machine credentials in an ignored local environment file. It reads followers and supported account insights; unsupported or denied fields remain unavailable. YouTube reuses the existing channel OAuth connection for subscriber and all-time channel view counts. The insights page ranks individual public videos by lifetime views among eligible videos in up to 50 recent posts or uploads per platform. It shows three previews per platform, expandable to five. TikTok is temporarily hidden from the media-kit cards.
 
 The optional Athena adapter accepts only approved aggregate snapshots. It does not expose Athena's private analytics API. Athena remains unchanged; the website deploys through its own independent service.
 

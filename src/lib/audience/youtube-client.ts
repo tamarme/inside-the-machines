@@ -1,4 +1,4 @@
-import type { AudienceMetric, PlatformSnapshot } from "./contract";
+import type { AudienceMetric, PlatformSnapshot, TopContent } from "./contract";
 
 export interface YouTubeConfig {
   clientId: string;
@@ -48,6 +48,38 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   return data;
 }
 
+async function topChannelVideos(playlist: string, channelId: string, accessToken: string, fetcher: typeof fetch): Promise<TopContent[]> {
+  async function list(resource: string, params: Record<string, string>) {
+    const url = new URL("https://www.googleapis.com/youtube/v3/" + resource);
+    url.search = new URLSearchParams(params).toString();
+    const data = await readJson(await fetcher(url, {
+      headers: { Authorization: "Bearer " + accessToken, Accept: "application/json" },
+      redirect: "error", cache: "no-store", signal: AbortSignal.timeout(5000),
+    }));
+    return Array.isArray(data.items) ? data.items.filter(record) : [];
+  }
+  const uploads = await list("playlistItems", { part: "contentDetails", playlistId: playlist, maxResults: "50", fields: "items(contentDetails/videoId)" });
+  const ids = uploads.flatMap(row => record(row.contentDetails) && typeof row.contentDetails.videoId === "string" &&
+    /^[\w-]{11}$/.test(row.contentDetails.videoId) ? [row.contentDetails.videoId] : []);
+  if (!ids.length) return [];
+  const items = await list("videos", { part: "snippet,statistics,status", id: ids.join(","),
+    fields: "items(id,snippet(channelId,title,thumbnails/medium/url),statistics/viewCount,status/privacyStatus)" });
+  const videos: TopContent[] = [];
+  for (const row of items) {
+    if (!record(row.status) || row.status.privacyStatus !== "public" || !record(row.snippet) ||
+        row.snippet.channelId !== channelId || typeof row.id !== "string" || !ids.includes(row.id) ||
+        typeof row.snippet.title !== "string" || !row.snippet.title.trim() || !record(row.statistics)) continue;
+    const views = publicCount(row.statistics.viewCount);
+    if (views === null) continue;
+    const thumbs = row.snippet.thumbnails;
+    const thumbnail = record(thumbs) && record(thumbs.medium) ? thumbs.medium.url : undefined;
+    videos.push({ id: row.id, title: row.snippet.title.slice(0, 180), platformUrl: "https://www.youtube.com/watch?v=" + row.id,
+      thumbnailUrl: typeof thumbnail === "string" ? thumbnail : undefined,
+      metric: { name: "views", sourceMetric: "youtube.video.viewCount", timeframe: "lifetime", value: views } });
+  }
+  return videos.sort((a, b) => b.metric.value - a.metric.value).slice(0, 5);
+}
+
 export async function collectYouTubeAudience(
   config: YouTubeConfig,
   fetcher: typeof fetch = fetch,
@@ -76,9 +108,9 @@ export async function collectYouTubeAudience(
   // mine=true verifies the refresh token belongs to the intended channel.
   const url = new URL("https://www.googleapis.com/youtube/v3/channels");
   url.search = new URLSearchParams({
-    part: "id,snippet,statistics",
+    part: "id,snippet,statistics,contentDetails",
     mine: "true",
-    fields: "items(id,snippet(customUrl),statistics(subscriberCount,hiddenSubscriberCount,viewCount))",
+    fields: "items(id,contentDetails/relatedPlaylists/uploads,snippet(customUrl),statistics(subscriberCount,hiddenSubscriberCount,viewCount))",
   }).toString();
   const data = await readJson(await fetcher(url, {
     headers: { Authorization: `Bearer ${token.access_token}`, Accept: "application/json" },
@@ -107,6 +139,10 @@ export async function collectYouTubeAudience(
     });
   }
   if (metrics.length === 0) return failure();
-  return { platform: "youtube", syncedAt: new Date(now).toISOString(), metrics, topContent: [] };
+  const details = channel.contentDetails;
+  const playlist = record(details) && record(details.relatedPlaylists) ? details.relatedPlaylists.uploads : undefined;
+  const topContent = typeof playlist === "string"
+    ? await topChannelVideos(playlist, config.channelId, token.access_token, fetcher).catch(() => [])
+    : [];
+  return { platform: "youtube", syncedAt: new Date(now).toISOString(), metrics, topContent, rankingScope: "recent50" };
 }
-

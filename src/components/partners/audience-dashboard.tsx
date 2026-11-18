@@ -1,5 +1,5 @@
 import { siteConfig } from "@/config/site";
-import { projects } from "@/content/projects";
+import { RankedVideos } from "./ranked-videos";
 import {
   isStale,
   metricLabels,
@@ -21,19 +21,6 @@ function metricLabel(metric: AudienceMetric): string {
   if (metric.sourceMetric === "page_media_view") return "Content views";
   if (metric.sourceMetric === "page_post_engagements") return "Content engagements";
   return metricLabels[metric.name];
-}
-
-function metricDescription(metric: AudienceMetric): string {
-  switch (metric.sourceMetric) {
-    case "youtube.channel.subscriberCount": return "Public subscriber count, rounded by YouTube to three significant figures.";
-    case "youtube.channel.viewCount": return "YouTube-reported total channel views across video formats.";
-    case "followers_count": return "Account total at synchronization.";
-    case "page_media_view": return "Times content was played or displayed.";
-    case "reach": return "Unique accounts reached over this reporting period.";
-    case "page_post_engagements": return "Post engagements, including reactions, comments, and shares.";
-    case "total_interactions": return "Platform-reported interactions with account content.";
-    default: return "Reported by the platform for the period shown.";
-  }
 }
 
 function MetricPeriod({ metric, syncedAt }: {
@@ -58,14 +45,10 @@ function PlatformMetrics({ snapshot, compact }: {
   const metrics = compact
     ? snapshot.metrics.filter((metric) => metric.name === "followers" || metric.name === "subscribers")
     : snapshot.metrics;
-  const topContent = snapshot.topContent.flatMap((item) => {
-    const project = projects.find((project) => project.id === item.projectId);
-    return project ? [{ ...item, project }] : [];
-  });
 
   return (
     <>
-      {isStale(snapshot) && (
+      {compact && isStale(snapshot) && (
         <p className="data-status data-stale">Delayed update · Last verified data</p>
       )}
       <dl className="metric-list">
@@ -77,7 +60,6 @@ function PlatformMetrics({ snapshot, compact }: {
               {new Intl.NumberFormat("en-GB").format(metric.value)}
             </dd>
             <dd><MetricPeriod metric={metric} syncedAt={snapshot.syncedAt} /></dd>
-            {!compact && <dd className="metric-source">{metricDescription(metric)}</dd>}
           </div>
         ))}
       </dl>
@@ -92,31 +74,7 @@ function PlatformMetrics({ snapshot, compact }: {
               {timeFormat.format(new Date(snapshot.syncedAt))} UTC
             </time>
           </p>
-          <p className="metric-availability">
-            Metrics not listed are unavailable for this reporting period.
-          </p>
-          {topContent.length > 0 && (
-            <div className="top-content">
-              <h4>Top-performing content</h4>
-              {topContent.map(({ project, metric }, index) => (
-                <div key={`${project.id}-${index}`}>
-                  <a
-                    href={`https://www.youtube.com/shorts/${project.video.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {project.title}<span aria-hidden="true"> ↗</span>
-                    <span className="sr-only"> (watch on YouTube, opens in a new tab)</span>
-                  </a>
-                  <p>
-                    {new Intl.NumberFormat("en-GB").format(metric.value)}{" "}
-                    {metricLabel(metric).toLowerCase()} on {snapshot.platform}
-                    <MetricPeriod metric={metric} syncedAt={snapshot.syncedAt} />
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <RankedVideos snapshot={snapshot} />
         </>
       )}
     </>
@@ -136,8 +94,8 @@ export function AudienceDashboard({ snapshot, compact = false }: {
           <article key={platform} className="platform-card" aria-labelledby={`platform-${platform}`}>
             <div className="platform-heading">
               <h3 id={`platform-${platform}`}>{social?.label ?? platform}</h3>
-              <span className={data ? "platform-state" : "platform-state is-unavailable"}>
-                {data ? "Verified snapshot" : "Not available"}
+              <span className={data && !isStale(data) ? "platform-state" : "platform-state is-unavailable"}>
+                {data ? isStale(data) ? "Delayed update" : "Verified snapshot" : "Not available"}
               </span>
             </div>
             {data ? (

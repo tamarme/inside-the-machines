@@ -39,7 +39,7 @@ Missing values never become zero. No Facebook unique reach is synthesized.
 Instagram unique reach accepts only `total_value`, never a sum of daily reach.
 Facebook rolling windows are selected individually, never summed.
 No attempt is made to discover or rank top content from partial account data.
-The optional Athena contract can supply up to three known projects per platform.
+Video rankings use individual public posts and video metrics as described below.
 
 Meta endpoints may require additional read authorization. Existing publishing
 access does not prove insights access. Check the current API version and permissions
@@ -113,8 +113,7 @@ Each platform snapshot:
 - `platform`: instagram, facebook, youtube, or tiktok
 - `syncedAt`: last successful collection timestamp, UTC ISO format
 - `metrics`: unique approved metric entries, at least one
-- `topContent`: optional array of at most three entries with a known `projectId`
-  and a period-based `metric`; unknown projects are omitted from presentation
+- `topContent`: up to five ranked videos or legacy project entries. See Sponsor media kit and video rankings below.
 
 Each metric:
 
@@ -159,10 +158,7 @@ reporting periods, freshness, correct rolling-window selection, unique-reach han
 account mismatch, denied insights, credential placement, oversized responses,
 concurrency, and failure backoff using synthetic fixtures. No live provider is called.
 
-Meta statistics were verified on the deployed site on 2026-11-18. Live YouTube access
-still needs verification after deployment; local outbound requests and browser access
-to the local preview were blocked in this execution environment. YouTube is described
-below; richer top-content data remains future work.
+Account metrics were verified on the deployed site on 2026-11-18. The new per-video rankings were verified with live provider data in the local preview on the same date.
 
 Official references:
 
@@ -221,3 +217,11 @@ References:
 - https://developers.google.com/youtube/v3/docs/channels/list
 - https://developers.google.com/youtube/v3/docs/channels
 - https://developers.google.com/identity/protocols/oauth2/web-server#offline
+
+## Sponsor media kit and video rankings
+
+The direct collectors now return up to five public videos per platform. Instagram uses lifetime media views for video posts. Facebook uses lifetime post_media_view on public Reel posts. Each scans up to 50 recent posts (two cursor pages). YouTube checks the latest 50 upload playlist entries and uses videos.list for public, matching-channel videos with a lifetime viewCount. Only items with usable public titles, links and counts qualify. The first three appear immediately and the remaining two use a native disclosure. Ranking failures leave account metrics available.
+
+An approved version 1 endpoint may return up to five topContent items per platform in ranking order. Each supports id, title, platformUrl, optional thumbnailUrl, publishedAt and projectId, and a metric with name, value, sourceMetric and either period or timeframe. For lifetime video views, use timeframe "lifetime", name "views", and sourceMetric "instagram.media.views", "post_media_view" or "youtube.video.viewCount" as appropriate. Platform links must point directly to the corresponding public video. Set rankingScope to "recent50" only for the same recent-posts comparison. Legacy projectId and period-metric entries remain supported. A verified portfolio match supplies the local title and thumbnail. Other previews use approved platform image hosts and fall back to text on load failure.
+
+The executive summary uses the same cached account snapshot as the detailed panels. No independent sync job or Athena change is required.

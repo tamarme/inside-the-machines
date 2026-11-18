@@ -214,3 +214,18 @@ test("lifetime views cannot be mislabeled as period metrics or used on another p
   value.platforms[0].metrics[0].sourceMetric = "unknownViews";
   assert.throws(() => parseAudienceSnapshot(value, now));
 });
+
+test("video rankings enforce platform links and distinguish lifetime video views from channel totals", () => {
+  const input = fixture();
+  const item = { id: "123", title: "Turbo", platformUrl: "https://www.instagram.com/reel/abc/",
+    thumbnailUrl: "https://other.example/test", metric: { name: "views", sourceMetric: "instagram.media.views", timeframe: "lifetime", value: 0 } };
+  input.platforms[0].topContent = [item];
+  const video = parseAudienceSnapshot(input, now).platforms[0].topContent[0];
+  assert.equal(video.metric.value, 0);
+  assert.equal(video.thumbnailUrl, undefined);
+  item.metric.sourceMetric = "youtube.channel.viewCount";
+  assert.throws(() => parseAudienceSnapshot(input, now));
+  item.metric.sourceMetric = "instagram.media.views";
+  item.platformUrl = "https://www.instagram.com.evil.example/reel/abc/";
+  assert.throws(() => parseAudienceSnapshot(input, now));
+});

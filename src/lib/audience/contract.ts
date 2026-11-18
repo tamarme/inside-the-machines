@@ -16,7 +16,12 @@ export interface AudienceMetric {
   period?: ReportingPeriod;
 }
 export interface TopContent {
-  projectId: string;
+  projectId?: string;
+  id?: string;
+  title?: string;
+  platformUrl?: string;
+  thumbnailUrl?: string;
+  publishedAt?: string;
   metric: AudienceMetric;
 }
 export interface PlatformSnapshot {
@@ -24,6 +29,7 @@ export interface PlatformSnapshot {
   syncedAt: string;
   metrics: AudienceMetric[];
   topContent: TopContent[];
+  rankingScope?: "recent50";
 }
 export interface AudienceSnapshot {
   version: 1;
@@ -57,7 +63,7 @@ function timestamp(value: unknown, now: number): string {
   requireValid(new Date(time).toISOString().slice(0, 19) === value.slice(0, 19));
   return new Date(time).toISOString();
 }
-function metric(value: unknown, platform: Platform, syncedAt: string, now: number): AudienceMetric {
+function metric(value: unknown, platform: Platform, syncedAt: string, now: number, video = false): AudienceMetric {
   requireValid(isRecord(value) && isMember(value.name, metricNames));
   requireValid(typeof value.value === "number" && Number.isSafeInteger(value.value) && value.value >= 0);
   requireValid(typeof value.sourceMetric === "string" && /^[a-zA-Z0-9_.:]{1,100}$/.test(value.sourceMetric));
@@ -65,8 +71,8 @@ function metric(value: unknown, platform: Platform, syncedAt: string, now: numbe
   requireValid(value.name !== "followers" || platform !== "youtube");
   const accountTotal = value.name === "followers" || value.name === "subscribers";
   if (value.timeframe !== undefined) {
-    requireValid(value.timeframe === "lifetime" && platform === "youtube" &&
-      value.name === "views" && value.sourceMetric === "youtube.channel.viewCount" &&
+    const lifetimeSource = video ? videoSources[platform] : platform === "youtube" ? "youtube.channel.viewCount" : undefined;
+    requireValid(value.timeframe === "lifetime" && value.name === "views" && value.sourceMetric === lifetimeSource &&
       value.period === undefined);
     return {
       name: value.name, value: value.value, sourceMetric: value.sourceMetric,
@@ -86,6 +92,28 @@ function metric(value: unknown, platform: Platform, syncedAt: string, now: numbe
   return { name: value.name, value: value.value, sourceMetric: value.sourceMetric, ...(period ? { period } : {}) };
 }
 
+const videoSources: Partial<Record<Platform, string>> = {
+  instagram: "instagram.media.views", facebook: "post_media_view", youtube: "youtube.video.viewCount",
+};
+
+const publicLinks: Partial<Record<Platform, RegExp>> = {
+  instagram: /^https:\/\/www\.instagram\.com\/(?:p|reel)\/[\w-]+\/?$/,
+  facebook: /^https:\/\/www\.facebook\.com\/reel\/\d+\/?$/,
+  youtube: /^https:\/\/www\.youtube\.com\/(?:watch\?v=|shorts\/)[\w-]{11}$/,
+};
+
+function thumbnailUrl(value: unknown, platform: Platform): string | undefined {
+  if (typeof value !== "string" || value.length > 4096) return;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.port ||
+        [...url.searchParams.keys()].some(key => /access.token|oauth|secret|api.key/i.test(key))) return;
+    if (platform === "youtube" && url.hostname === "i.ytimg.com" ||
+        platform === "facebook" && url.hostname.endsWith(".fbcdn.net") ||
+        platform === "instagram" && (url.hostname.endsWith(".cdninstagram.com") || url.hostname.endsWith(".fbcdn.net"))) return url.href;
+  } catch { /* An unusable thumbnail is optional. */ }
+}
+
 export function parseAudienceSnapshot(value: unknown, now = Date.now()): AudienceSnapshot {
   requireValid(isRecord(value) && value.version === 1 && value.brand === "inside-the-machine" && value.approvedForPublic === true);
   requireValid(Array.isArray(value.platforms) && value.platforms.length > 0 && value.platforms.length <= platforms.length);
@@ -98,15 +126,26 @@ export function parseAudienceSnapshot(value: unknown, now = Date.now()): Audienc
     requireValid(Array.isArray(entry.metrics) && entry.metrics.length > 0 && entry.metrics.length <= metricNames.length);
     const metrics = entry.metrics.map((item) => metric(item, platform, syncedAt, now));
     requireValid(new Set(metrics.map((item) => item.name)).size === metrics.length);
-    requireValid(entry.topContent === undefined || (Array.isArray(entry.topContent) && entry.topContent.length <= 3));
+    requireValid(entry.topContent === undefined || (Array.isArray(entry.topContent) && entry.topContent.length <= 5));
     const topContent: TopContent[] = (entry.topContent ?? []).map((item: unknown) => {
-      requireValid(isRecord(item) && typeof item.projectId === "string" && /^[a-z0-9-]{1,80}$/.test(item.projectId));
-      const topMetric = metric(item.metric, platform, syncedAt, now);
-      requireValid(topMetric.name !== "followers" && topMetric.name !== "subscribers" &&
-        topMetric.timeframe === undefined);
-      return { projectId: item.projectId, metric: topMetric };
+      requireValid(isRecord(item));
+      const projectId = item.projectId;
+      requireValid(projectId === undefined || typeof projectId === "string" && /^[a-z0-9-]{1,80}$/.test(projectId));
+      const topMetric = metric(item.metric, platform, syncedAt, now, true);
+      requireValid(topMetric.name !== "followers" && topMetric.name !== "subscribers");
+      if (!item.id) {
+        requireValid(typeof projectId === "string");
+        return { projectId, metric: topMetric };
+      }
+      requireValid(typeof item.id === "string" && /^[\w-]{1,100}$/.test(item.id));
+      requireValid(typeof item.title === "string" && !!item.title.trim() && item.title.length <= 180);
+      requireValid(typeof item.platformUrl === "string" && publicLinks[platform]?.test(item.platformUrl));
+      return { id: item.id, projectId, title: item.title.trim(), platformUrl: item.platformUrl,
+        thumbnailUrl: thumbnailUrl(item.thumbnailUrl, platform),
+        publishedAt: item.publishedAt === undefined ? undefined : timestamp(item.publishedAt, now),
+        metric: topMetric };
     });
-    return { platform, syncedAt, metrics, topContent };
+    return { platform, syncedAt, metrics, topContent, ...(entry.rankingScope === "recent50" ? { rankingScope: "recent50" as const } : {}) };
   });
   return { version: 1, brand: "inside-the-machine", approvedForPublic: true, platforms: parsed };
 }

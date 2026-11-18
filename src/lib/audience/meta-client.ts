@@ -1,4 +1,4 @@
-import type { AudienceMetric, PlatformSnapshot, ReportingPeriod } from "./contract";
+import type { AudienceMetric, PlatformSnapshot, ReportingPeriod, TopContent } from "./contract";
 
 export interface MetaConfig {
   pageId: string;
@@ -97,6 +97,43 @@ export function facebookWindow(
   };
 }
 
+async function topMetaVideos(config: MetaConfig, platform: MetaPlatform, fetcher: typeof fetch): Promise<TopContent[]> {
+  const instagram = platform === "instagram";
+  const edge = instagram ? config.instagramId + "/media" : config.pageId + "/published_posts";
+  const fields = instagram
+    ? "id,media_type,caption,permalink,thumbnail_url,insights.metric(views){name,period,values}"
+    : "id,message,permalink_url,privacy,full_picture,insights.metric(post_media_view){name,period,values}";
+  const source = instagram ? "views" : "post_media_view";
+  const videos: TopContent[] = [];
+  let after: string | undefined;
+  // Keep the comparison set bounded and named on the page. Never follow provider paging URLs.
+  for (let page = 0; page < 2; page++) {
+    const data = await graphRead(config, edge, { fields, limit: "25", ...(after ? { after } : {}) }, fetcher);
+    if (!Array.isArray(data.data)) return [];
+    for (const row of data.data) {
+      if (!record(row) || typeof row.id !== "string" || !/^[\w-]{1,100}$/.test(row.id)) continue;
+      if (instagram ? row.media_type !== "VIDEO" : !record(row.privacy) || row.privacy.value !== "EVERYONE") continue;
+      const platformUrl = instagram ? row.permalink : row.permalink_url;
+      const validLink = instagram ? /^https:\/\/www\.instagram\.com\/(?:p|reel)\/[\w-]+\/?$/ : /^https:\/\/www\.facebook\.com\/reel\/\d+\/?$/;
+      if (typeof platformUrl !== "string" || !validLink.test(platformUrl)) continue;
+      const caption = instagram ? row.caption : row.message;
+      const title = typeof caption === "string" ? caption.trim().split(/\r?\n/)[0].slice(0, 160).trim() : "";
+      if (!title || !record(row.insights) || !Array.isArray(row.insights.data)) continue;
+      const insight = row.insights.data.find((v: unknown) => record(v) && v.name === source && v.period === "lifetime");
+      if (!record(insight) || !Array.isArray(insight.values) || insight.values.length !== 1) continue;
+      const point: unknown = insight.values[0];
+      if (!record(point) || !count(point.value) || videos.some(video => video.id === row.id)) continue;
+      const thumbnail = instagram ? row.thumbnail_url : row.full_picture;
+      videos.push({ id: row.id, title, platformUrl, thumbnailUrl: typeof thumbnail === "string" ? thumbnail : undefined,
+        metric: { name: "views", value: point.value, timeframe: "lifetime", sourceMetric: instagram ? "instagram.media.views" : source } });
+    }
+    if (!record(data.paging) || !data.paging.next) break;
+    if (!record(data.paging.cursors) || typeof data.paging.cursors.after !== "string") return [];
+    after = data.paging.cursors.after;
+  }
+  return videos.sort((a, b) => b.metric.value - a.metric.value).slice(0, 5);
+}
+
 export async function collectMetaPlatform(
   config: MetaConfig,
   platform: MetaPlatform,
@@ -160,5 +197,6 @@ export async function collectMetaPlatform(
     metrics.push(...results.filter((metric): metric is AudienceMetric => metric !== null));
   }
   if (metrics.length === 0) return failure();
-  return { platform, syncedAt: new Date(now).toISOString(), metrics, topContent: [] };
+  const topContent = await topMetaVideos(config, platform, fetcher).catch(() => []);
+  return { platform, syncedAt: new Date(now).toISOString(), metrics, topContent, rankingScope: "recent50" };
 }
