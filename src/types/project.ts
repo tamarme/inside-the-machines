@@ -8,13 +8,14 @@ export interface ProjectImage {
 export interface Project {
   id: string;
   title: string;
+  category: "Turbocharging" | "Engines" | "Drivetrain" | "Emissions";
   thumbnail?: ProjectImage;
   video: {
     provider: "youtube";
     id: string;
     aspectRatio: "9:16" | "16:9";
   };
-  featuredOrder: number;
+  featuredOrder?: number;
 }
 
 export interface VideoProject extends Project {

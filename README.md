@@ -1,8 +1,8 @@
 # Inside the Machine
 
-Phase 1 of [insidethemachines.com](https://www.insidethemachines.com): a portfolio for an engineering visualization studio. Built with Next.js App Router, React, strict TypeScript, and Tailwind CSS. The homepage presents original turbocharger artwork, six original animation thumbnails with on-demand YouTube playback, the studio's approach, and an email contact action.
+Public website for [insidethemachines.com](https://www.insidethemachines.com): a portfolio for an engineering visualization studio. Built with Next.js App Router, React, strict TypeScript, and Tailwind CSS. The homepage presents original turbocharger artwork, six original animation thumbnails with on-demand YouTube playback, social community links, the studio's perspective, and commercial collaboration opportunities. Separate work, partnerships, and audience-insights pages share the same design system.
 
-No backend, database, application analytics, contact form is included. YouTube resources load only after a visitor opens a video.
+No database, authentication, tracking analytics, or contact form is included. Optional audience statistics are read on the server through a scoped Meta adapter or an approved Athena aggregate endpoint. YouTube resources load only after a visitor opens a video.
 
 ## Local development
 
@@ -18,6 +18,7 @@ Open http://localhost:3000. For a different port: `npm run dev -- --port 3001`.
 ## Checks and production build
 
 ```sh
+npm test
 npm run lint
 npm run typecheck
 npm run build
@@ -45,7 +46,24 @@ public/
   fonts/                Local variable fonts and their licenses
 ```
 
-The header and video portfolio are the two client interaction boundaries. The header handles its disclosure menu; `VideoPortfolio` owns the selected video and composes `VideoProjectCard` and `VideoPlayerDialog`. The surrounding sections and footer remain Server Components. Section anchors receive focus naturally, with sticky-header clearance supplied by CSS. Tailwind is available through PostCSS; shared styling and tokens live in `globals.css`.
+The header and video portfolio remain the only client interaction boundaries. The header handles its disclosure menu; `VideoPortfolio` owns the selected video and composes `VideoProjectCard` and `VideoPlayerDialog`. The surrounding sections and footer remain Server Components. Section anchors receive focus naturally, with sticky-header clearance supplied by CSS. Tailwind is available through PostCSS; shared styling and tokens live in `globals.css`.
+
+## Routes and commercial content
+
+| Route | Purpose |
+| --- | --- |
+| / | Hero, community, six selected videos, perspective, collaboration, contact |
+| /work | Complete available portfolio |
+| /partners | Studio/media offer, usage rights, selected work, audience overview |
+| /partners/insights | Verified platform data, periods, freshness, unavailable states |
+
+Navigation is centralized in site.ts and works from every route. The header remains free of social icons. Social links appear after the hero and in the footer. Reusable collaboration copy lives in src/content/collaborations.ts. Six current projects use category labels without unnecessary filter controls. Each route has its own canonical and social metadata.
+
+## Audience statistics
+
+See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and remaining live checks. Direct Meta mode reuses only the owner-authorized Inside the Machine credentials in an ignored local environment file. It reads followers and supported account insights; unsupported or denied fields remain unavailable. YouTube and TikTok have no direct statistics integration.
+
+The optional Athena adapter accepts only approved aggregate snapshots. It does not expose Athena's private analytics API. Athena remains unchanged; the website deploys through its own independent service.
 
 ## Common edits
 
@@ -62,18 +80,20 @@ The four official Instagram, YouTube, Facebook, and TikTok URLs live in `siteCon
 
 ## Hero artwork
 
-Original production assets are included:
+The selected cutaway turbocharger has two separately composed original production assets:
 
-- `public/images/hero/turbo-desktop.webp` — 2048 × 1152
-- `public/images/hero/turbo-mobile.webp` — 1080 × 1350
+- `public/images/hero/turbo-cutaway-desktop.webp` — 2560 × 1440
+- `public/images/hero/turbo-cutaway-mobile.webp` — 1200 × 1600
 
-The hero uses `getImageProps` with one native `<picture>` and a mobile `<source>` at 767px. The browser chooses the appropriate art direction, and Next.js generates responsive image candidates. A single eager, high-priority `<img>` avoids preloading both variants. Desktop preserves the full composition. Mobile uses a square viewport with the original 4:5 image aligned to its bottom: this trims the upper 20% of the pipe area while retaining the complete mechanical assembly and original scale. Tighter mobile spacing brings the turbocharger into the first viewport without placing text over it. A future near-square Blender render with a shorter intake-pipe composition would show more of the full airflow path in the same space.
+Optimized WebP copies come from the supplied hero-v2 production exports. The image content is unchanged. Desktop uses contain to preserve the mechanism and flows at wide screen ratios. Mobile trims only empty margins from the portrait composition, enlarging the subject below the HTML copy. No separate mobile render is needed. The optional supplementary engine render was not supplied and is not required.
 
-When replacing the originals, preserve their composition and update dimensions in the hero if they change. Inspect both viewports. In browser developer tools, filter Network by `turbo-`: a fresh load should request only the mobile source below 768px, or the desktop source at and above 768px. Resizing across that boundary can legitimately request the other source.
+One native picture with getImageProps selects mobile artwork below 768px and desktop from 768px. A single eager, high-priority image avoids duplicate preloads. Mobile sizes account for the 156% display width. A fresh load should request only the appropriate artwork; resizing across the breakpoint can legitimately fetch the other.
+
+Inspect 320, 375, 390, 768, 1024, 1440, and 1920px viewports after changing artwork or layout. Do not claim browser or network verification from static markup checks alone.
 
 ## Portfolio content
 
-Add or edit videos in `src/content/projects.ts`. Each project has a stable ID, title, thumbnail metadata, video provider/ID/aspect ratio, and `featuredOrder`. Lower order values appear first. Keep supplied YouTube IDs exactly, including case, underscores, and hyphens. Shorts links and privacy-enhanced embed URLs are derived from the video ID rather than stored separately.
+Add or edit videos in `src/content/projects.ts`. Each project has a stable ID, title, thumbnail metadata, video provider/ID/aspect ratio, a category, and optional `featuredOrder`. The homepage selects the first six explicitly featured projects; /work shows the complete collection. Lower featured order values appear first. Keep supplied YouTube IDs exactly, including case, underscores, and hyphens. Shorts links and privacy-enhanced embed URLs are derived from the video ID rather than stored separately.
 
 For example, the configured turbocharger project is:
 
@@ -81,6 +101,7 @@ For example, the configured turbocharger project is:
 {
   id: "turbocharger",
   title: "How a Turbocharger Works",
+  category: "Turbocharging",
   thumbnail: {
     src: "/images/thumbnails/turbocharger.webp",
     alt: "How a Turbocharger Works — original animation thumbnail",
@@ -112,7 +133,7 @@ If React reports extra `<body>` attributes named `data-new-gr-c-s-check-loaded` 
 
 ## Future Athena integration
 
-`Project` is the content boundary. A future server-side Athena adapter can supply the same interface to the work section instead of the local array. Keep remote fetching and validation outside presentation components, and keep credentials server-side. This phase deliberately adds no adapter, API routes, authentication, individual project pages, search, or Three.js. The website remains independently deployable from Athena.
+`Project` is the portfolio content boundary. A future server-side Athena portfolio adapter can supply the same interface instead of the local array. The audience adapter is separate and described above. Keep remote fetching and validation outside presentation components, and keep credentials server-side. No public API routes, authentication, individual project pages, search, or Three.js are added. The website remains independently deployable from Athena.
 
 ## Railway deployment
 
@@ -133,4 +154,4 @@ The GitHub Railway App must include `tamarme/inside-the-machines` in its selecte
 4. Allow Railway to supply `PORT`; the start script binds to `0.0.0.0`.
 5. Use `/` for the HTTP health check. Configure the custom domain and DNS only at deployment time.
 
-The standard Next.js server handles image optimization. No Vercel-only services or Athena deployment changes are required. No application secrets are needed for Phase 1.
+The standard Next.js server handles image optimization. No Vercel-only services or Athena deployment changes are required. The portfolio runs without application secrets. Optional audience statistics require server-only settings; see docs/audience-integration.md. Configure audience variables only on the independent website service.

@@ -8,11 +8,11 @@ const socialIcons = {
   tiktok: SiTiktok,
 };
 
-export function SocialLinks() {
+export function SocialLinks({ showLabels = false }: { showLabels?: boolean }) {
   if (siteConfig.socialLinks.length === 0) return null;
 
   return (
-    <nav aria-label="Social media" className="social-links">
+    <nav aria-label={showLabels ? "Follow our community" : "Social media"} className={showLabels ? "social-links social-links-labeled" : "social-links"}>
       {siteConfig.socialLinks.map((link) => {
         const Icon = socialIcons[link.platform];
 
@@ -25,6 +25,7 @@ export function SocialLinks() {
             rel="noopener noreferrer"
           >
             <Icon aria-hidden="true" focusable="false" />
+            {showLabels && <><span>{link.label}</span><span className="social-link-arrow" aria-hidden="true">↗</span></>}
           </a>
         );
       })}

@@ -12,7 +12,7 @@ export function ContactSection() {
     >
       <div className="page-container">
         <p className="eyebrow section-label">
-          <span aria-hidden="true">03 /</span> Let’s Talk
+          Let’s Talk
         </p>
         <div className="contact-layout">
           <div>

@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { siteConfig } from "@/config/site";
+import { pageMetadata } from "@/lib/page-metadata";
 import "./globals.css";
 
 const inter = localFont({
@@ -19,11 +20,13 @@ const spaceGrotesk = localFont({
 });
 
 export const metadata: Metadata = {
+  ...pageMetadata("Engineering, Made Visible.", siteConfig.description, "/"),
   metadataBase: new URL(siteConfig.url),
   title: `${siteConfig.name} — Engineering, Made Visible.`,
   description: siteConfig.description,
   alternates: { canonical: "/" },
   openGraph: {
+    images: [{ url: "/images/hero/turbo-cutaway-desktop.webp", width: 2560, height: 1440 }],
     type: "website",
     locale: "en_US",
     url: siteConfig.url,
@@ -32,7 +35,8 @@ export const metadata: Metadata = {
     description: siteConfig.description,
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
+    images: ["/images/hero/turbo-cutaway-desktop.webp"],
     title: siteConfig.name,
     description: siteConfig.description,
   },

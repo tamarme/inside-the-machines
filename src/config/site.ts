@@ -15,9 +15,10 @@ export const siteConfig = {
     "Precise, cinematic 3D animation that brings complex mechanical systems to life. Engineering visualization by Inside the Machine.",
   email: "contact@insidethemachines.com",
   navigation: [
-    { label: "Work", href: "#work" },
-    { label: "About", href: "#about" },
-    { label: "Contact", href: "#contact" },
+    { label: "Work", href: "/work" },
+    { label: "About", href: "/#about" },
+    { label: "Partners", href: "/partners" },
+    { label: "Contact", href: "/#contact" },
   ] satisfies SiteLink[],
   socialLinks: [
     {

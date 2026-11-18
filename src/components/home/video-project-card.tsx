@@ -29,6 +29,7 @@ export function VideoProjectCard({ project, onPlay }: VideoProjectCardProps) {
           </svg>
         </span>
       </button>
+      <p className="project-category eyebrow">{project.category}</p>
       <h3 className="video-project-title">{project.title}</h3>
     </article>
   );

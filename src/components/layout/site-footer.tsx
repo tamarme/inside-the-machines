@@ -1,4 +1,5 @@
 import { siteConfig } from "@/config/site";
+import Link from "next/link";
 import { SocialLinks } from "@/components/layout/social-links";
 
 export function SiteFooter() {
@@ -6,13 +7,13 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="page-container footer-inner">
         <div className="footer-brand">
-          <a className="wordmark" href="#top">
+          <Link className="wordmark" href="/">
             {siteConfig.wordmark.prefix}{" "}
             <span>{siteConfig.wordmark.emphasis}</span>
             <span className="wordmark-period" aria-hidden="true">
               .
             </span>
-          </a>
+          </Link>
           <a className="footer-email" href={`mailto:${siteConfig.email}`}>
             {siteConfig.email}
           </a>

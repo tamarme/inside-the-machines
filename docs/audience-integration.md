@@ -1,0 +1,172 @@
+# Audience data integration
+
+The public website renders approved aggregate audience data on the server. It adds no
+public API, account management, provider SDK, publishing capability, database, or analytics
+tracking script. The website and Athena remain independently deployable.
+
+## Current implementation
+
+The owner authorized reusing Inside the Machine's existing Meta credentials on
+2026-11-18. Only its scoped Page ID, Instagram ID, access token, and Graph version
+were copied to the website's ignored local `.env.local`. No global app secret,
+other project token, YouTube credential, or Athena login was copied.
+Deployment must configure the corresponding server variables only on the independent website service.
+
+Two mutually exclusive sources are supported:
+
+1. **Direct Meta reads** when neither Athena endpoint variable is configured.
+2. **Approved Athena aggregates** when both endpoint variables are configured.
+   An incomplete/invalid Athena configuration fails closed rather than silently
+   switching credentials or providers.
+
+The direct reader uses the Graph version configured in the environment, not an
+assumed latest version. It verifies the Page-to-Instagram relationship, both returned
+account IDs, and the Instagram username against the official link in `site.ts`.
+It never falls back to global or other-project credentials.
+
+| Platform | Implemented read | Meaning |
+| --- | --- | --- |
+| Instagram | `followers_count` | Account total at synchronization |
+| Instagram | `views`, `reach`, `total_interactions` | Provider aggregate over the requested 30-day window |
+| Facebook | `followers_count` | Page followers; never substitute Page likes |
+| Facebook | `page_media_view`, `page_post_engagements` | Latest provider-reported rolling 28-day window |
+| YouTube / TikTok | No direct integration | Unavailable until an approved source supplies actual data |
+
+Each optional insight is requested separately. Permission-denied, deprecated, absent,
+or invalid responses omit that metric while retaining available metrics.
+Missing values never become zero. No Facebook unique reach is synthesized.
+Instagram unique reach accepts only `total_value`, never a sum of daily reach.
+Facebook rolling windows are selected individually, never summed.
+No attempt is made to discover or rank top content from partial account data.
+The optional Athena contract can supply up to three known projects per platform.
+
+Meta endpoints may require additional read authorization. Existing publishing
+access does not prove insights access. Check the current API version and permissions
+without replacing publishing credentials or expanding permissions incidentally.
+Instagram insights typically require `instagram_manage_insights` and account read
+permissions; Page Insights requires `read_insights` and `pages_read_engagement`.
+The application does not grant scopes or create access tokens.
+
+## Server configuration
+
+See `.env.example`. Set variables only in the server environment; never prefix them
+with `NEXT_PUBLIC_`. Do not paste token values into issues, browser URLs, logs, or chat.
+
+Direct Meta mode:
+
+- `META_INSIDE_THE_MACHINE_PAGE_ID`
+- `META_INSIDE_THE_MACHINE_INSTAGRAM_ID`
+- `META_INSIDE_THE_MACHINE_ACCESS_TOKEN`
+- `META_GRAPH_API_VERSION`
+
+Rotate the shared token in both applications when needed. A dedicated token with only
+the necessary read permissions is preferable for a future production configuration.
+Sharing a publishing token does not narrow that token's existing privileges; the
+website's code restricts its own operations to GET requests.
+
+Optional Athena mode:
+
+- `ATHENA_PUBLIC_METRICS_URL`: exact owner-approved HTTPS endpoint, with no user info,
+  query string, or fragment.
+- `ATHENA_PUBLIC_METRICS_TOKEN`: dedicated read-only credential for this aggregate contract.
+
+Never point this adapter at Athena's existing private `/api/analytics` route.
+No raw Athena workspace or provider payload is suitable for direct public output.
+
+## Athena audit
+
+Read-only inspection of the owner-supplied local checkout found:
+
+- `src/server/meta-config.ts`: separate credentials for every project, including
+  `META_INSIDE_THE_MACHINE_*`.
+- `src/server/growth/connections.ts`: verified platform-account connections and
+  account follower totals.
+- `src/server/analytics.ts`, `src/app/api/analytics/route.ts`: authenticated,
+  project-scoped per-video analytics.
+- `docs/analytics.md`, `docs/ai-team.md`: existing collectors, permissions, reporting
+  limitations, and private snapshots.
+
+The inspected source has no approved public media-kit endpoint. Its 7/30-day video
+selection is a publication cohort with current lifetime counters; it is not
+account-wide views in the last 30 days. Its optional Instagram history is restricted
+to chess projects. Do not relabel either source to fit this UI.
+
+No Athena source, credentials, scheduling, consent, collection settings, or production
+services were changed. A future Athena endpoint can reuse the collectors, enforce
+Inside the Machine's project/account identity, and publish only explicitly approved
+aggregates. It must check read authorization and upstream consent, not grant access.
+
+## Version 1 aggregate contract
+
+The TypeScript interfaces and validator in `src/lib/audience/contract.ts` are authoritative.
+
+Envelope:
+
+- `version: 1`
+- `brand: "inside-the-machine"`
+- `approvedForPublic: true`
+- `platforms`: one to four unique platform snapshots
+
+Each platform snapshot:
+
+- `platform`: instagram, facebook, youtube, or tiktok
+- `syncedAt`: last successful collection timestamp, UTC ISO format
+- `metrics`: unique approved metric entries, at least one
+- `topContent`: optional array of at most three entries with a known `projectId`
+  and a period-based `metric`; unknown projects are omitted from presentation
+
+Each metric:
+
+- `name`: followers, subscribers, views, reach, impressions, or interactions
+- `value`: nonnegative safe integer, including actual zero
+- `sourceMetric`: official source metric identifier
+- `period: { start, end }`: required for performance metrics, forbidden for account totals
+- Reporting-period end must not follow the collection timestamp.
+- Subscribers apply only to YouTube; followers apply to the other three platforms.
+
+Only explicit allowlisted fields are reconstructed. Arbitrary URLs, credentials,
+private demographics, source payloads, and unknown fields are discarded.
+The contract is a presentation boundary, not an assertion that every official API
+supports every field. An upstream adapter must verify each metric's actual meaning,
+permissions, coverage, units, and timeframe before approving it.
+
+## Caching, freshness, and failure behavior
+
+Validated snapshots use Next.js's server data cache with one-hour revalidation.
+Refreshes happen on demand, not through a new scheduler. Instagram and Facebook are
+cached independently. Concurrent provider reads are shared per process; cold failures
+have a one-minute process-local backoff. Upstream rate limits still apply.
+
+Failed refreshes throw inside the cache, preserving the last successful cache entry.
+Metrics are never replaced with fabricated zeros. When no valid cache exists, the
+UI shows unavailable data. Snapshots older than two hours are visibly delayed.
+All timestamps and reporting windows are displayed in UTC; periods may differ.
+The provider may publish its own aggregates less frequently than hourly.
+
+This uses `unstable_cache` because the existing project does not enable Cache Components.
+A future migration can adopt `use cache` with a coordinated framework change.
+
+HTTP requests have five-second timeouts, a 128 KiB response limit, no redirects,
+no browser-visible access token, and no credential-bearing URL. Configuration hashes
+scope the cache to the intended accounts and current credentials. Do not log raw
+provider error bodies or fetch options.
+
+## Validation and remaining checks
+
+`npm test` covers public-data validation, private-field removal, zero/missing values,
+reporting periods, freshness, correct rolling-window selection, unique-reach handling,
+account mismatch, denied insights, credential placement, oversized responses,
+concurrency, and failure backoff using synthetic fixtures. No live provider is called.
+
+Live Meta access and current permission availability could not be verified in this
+execution environment because outbound network access failed. Confirm those on an
+authorized development host before claiming the dashboard is connected.
+YouTube/TikTok integration and richer top-content data remain future work.
+
+Official references:
+
+- https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/
+- https://developers.facebook.com/docs/graph-api/reference/shadow-ig-user/insights/
+- https://developers.facebook.com/docs/graph-api/reference/page/
+- https://developers.facebook.com/docs/graph-api/reference/insights/
+- https://developers.facebook.com/docs/insights/overview

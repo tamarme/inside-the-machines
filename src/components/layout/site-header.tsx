@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { siteConfig } from "@/config/site";
 
 export function SiteHeader() {
@@ -53,9 +54,9 @@ export function SiteHeader() {
       }}
     >
       <div className="page-container header-inner">
-        <a
+        <Link
           className="wordmark"
-          href="#top"
+          href="/"
           onClick={() => setMenuOpen(false)}
           aria-label={`${siteConfig.name} — home`}
         >
@@ -64,7 +65,7 @@ export function SiteHeader() {
           <span className="wordmark-period" aria-hidden="true">
             .
           </span>
-        </a>
+        </Link>
         <button
           className="menu-toggle"
           type="button"
@@ -88,13 +89,13 @@ export function SiteHeader() {
           className={menuOpen ? "main-navigation is-open" : "main-navigation"}
         >
           {siteConfig.navigation.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
       </div>

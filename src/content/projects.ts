@@ -3,6 +3,7 @@ import type { Project } from "@/types/project";
 export const projects: Project[] = [
   {
     id: "turbocharger",
+    category: "Turbocharging",
     title: "How a Turbocharger Works",
     thumbnail: {
       src: "/images/thumbnails/turbocharger.webp",
@@ -15,6 +16,7 @@ export const projects: Project[] = [
   },
   {
     id: "diesel-vs-gasoline",
+    category: "Engines",
     title: "Diesel vs Gasoline",
     thumbnail: {
       src: "/images/thumbnails/diesel-vs-gasoline.webp",
@@ -27,6 +29,7 @@ export const projects: Project[] = [
   },
   {
     id: "differential",
+    category: "Drivetrain",
     title: "How a Differential Works",
     thumbnail: {
       src: "/images/thumbnails/differential.webp",
@@ -39,6 +42,7 @@ export const projects: Project[] = [
   },
   {
     id: "supercharger",
+    category: "Turbocharging",
     title: "How a Supercharger Works",
     thumbnail: {
       src: "/images/thumbnails/supercharger.webp",
@@ -51,6 +55,7 @@ export const projects: Project[] = [
   },
   {
     id: "egr",
+    category: "Emissions",
     title: "Exhaust Gas Recirculation",
     thumbnail: {
       src: "/images/thumbnails/egr.webp",
@@ -63,6 +68,7 @@ export const projects: Project[] = [
   },
   {
     id: "limited-slip-differential",
+    category: "Drivetrain",
     title: "Limited-Slip Differential",
     thumbnail: {
       src: "/images/thumbnails/limited-slip-differential.webp",
@@ -74,3 +80,10 @@ export const projects: Project[] = [
     featuredOrder: 6,
   },
 ];
+
+export function getFeaturedProjects(): Project[] {
+  return projects
+    .filter((project) => project.featuredOrder !== undefined)
+    .sort((first, second) => (first.featuredOrder ?? 0) - (second.featuredOrder ?? 0))
+    .slice(0, 6);
+}

@@ -3,20 +3,20 @@ import { getImageProps } from "next/image";
 export function HeroSection() {
   const common = {
     alt: "Cutaway 3D visualization of a turbocharger, revealing its turbine, compressor and orange and blue airflow paths.",
-    sizes: "100vw",
+    sizes: "(max-width: 767px) 156vw, 100vw",
     quality: 75,
   };
   const { props: desktop } = getImageProps({
     ...common,
-    src: "/images/hero/turbo-desktop.webp",
-    width: 2048,
-    height: 1152,
+    src: "/images/hero/turbo-cutaway-desktop.webp",
+    width: 2560,
+    height: 1440,
   });
   const { props: mobile } = getImageProps({
     ...common,
-    src: "/images/hero/turbo-mobile.webp",
-    width: 1080,
-    height: 1350,
+    src: "/images/hero/turbo-cutaway-mobile.webp",
+    width: 1200,
+    height: 1600,
   });
 
   return (
@@ -24,7 +24,7 @@ export function HeroSection() {
       <div className="page-container hero-content">
         <p className="eyebrow">
           <span className="status-mark" aria-hidden="true" />
-          3D Engineering Visualization
+          Automotive Engineering / 3D Visualization
         </p>
         <h1 id="hero-heading">
           Engineering,
@@ -32,15 +32,15 @@ export function HeroSection() {
           <span>Made Visible.</span>
         </h1>
         <p className="hero-description">
-          We bring complex mechanical systems to life through precise, cinematic
-          3D animation.
+          Cinematic 3D animations that reveal how automotive systems really work.
+          Built on precise engineering understanding.
         </p>
         <div className="hero-actions">
           <a className="button button-primary" href="#work">
             Explore Our Work<span aria-hidden="true">↗</span>
           </a>
-          <a className="button button-text" href="#contact">
-            Get in Touch<span aria-hidden="true">↗</span>
+          <a className="button button-text" href="/partners">
+            Start a Collaboration<span aria-hidden="true">↗</span>
           </a>
         </div>
       </div>
