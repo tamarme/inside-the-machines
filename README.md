@@ -61,7 +61,7 @@ Navigation is centralized in site.ts and works from every route. The header rema
 
 ## Audience statistics
 
-See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and remaining live checks. Direct Meta mode reuses only the owner-authorized Inside the Machine credentials in an ignored local environment file. It reads followers and supported account insights; unsupported or denied fields remain unavailable. YouTube and TikTok have no direct statistics integration.
+See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and remaining live checks. Direct Meta mode reuses only the owner-authorized Inside the Machine credentials in an ignored local environment file. It reads followers and supported account insights; unsupported or denied fields remain unavailable. YouTube reuses the existing channel OAuth connection for subscriber and all-time channel view counts. TikTok is temporarily hidden from the media-kit cards.
 
 The optional Athena adapter accepts only approved aggregate snapshots. It does not expose Athena's private analytics API. Athena remains unchanged; the website deploys through its own independent service.
 

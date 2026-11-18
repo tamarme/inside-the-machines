@@ -1321,8 +1321,12 @@ h2 {
 }
 
 .audience-grid-compact {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+}
+
+.audience-grid:not(.audience-grid-compact) > .platform-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 
 .platform-card {

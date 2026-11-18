@@ -12,6 +12,7 @@ export interface AudienceMetric {
   name: MetricName;
   value: number;
   sourceMetric: string;
+  timeframe?: "lifetime";
   period?: ReportingPeriod;
 }
 export interface TopContent {
@@ -63,6 +64,15 @@ function metric(value: unknown, platform: Platform, syncedAt: string, now: numbe
   requireValid(value.name !== "subscribers" || platform === "youtube");
   requireValid(value.name !== "followers" || platform !== "youtube");
   const accountTotal = value.name === "followers" || value.name === "subscribers";
+  if (value.timeframe !== undefined) {
+    requireValid(value.timeframe === "lifetime" && platform === "youtube" &&
+      value.name === "views" && value.sourceMetric === "youtube.channel.viewCount" &&
+      value.period === undefined);
+    return {
+      name: value.name, value: value.value, sourceMetric: value.sourceMetric,
+      timeframe: "lifetime",
+    };
+  }
   let period: ReportingPeriod | undefined;
   if (accountTotal) {
     requireValid(value.period === undefined);
@@ -92,7 +102,8 @@ export function parseAudienceSnapshot(value: unknown, now = Date.now()): Audienc
     const topContent: TopContent[] = (entry.topContent ?? []).map((item: unknown) => {
       requireValid(isRecord(item) && typeof item.projectId === "string" && /^[a-z0-9-]{1,80}$/.test(item.projectId));
       const topMetric = metric(item.metric, platform, syncedAt, now);
-      requireValid(topMetric.name !== "followers" && topMetric.name !== "subscribers");
+      requireValid(topMetric.name !== "followers" && topMetric.name !== "subscribers" &&
+        topMetric.timeframe === undefined);
       return { projectId: item.projectId, metric: topMetric };
     });
     return { platform, syncedAt, metrics, topContent };

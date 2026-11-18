@@ -3,7 +3,6 @@ import { projects } from "@/content/projects";
 import {
   isStale,
   metricLabels,
-  platforms,
   type AudienceMetric,
   type AudienceSnapshot,
   type PlatformSnapshot,
@@ -18,6 +17,7 @@ const timeFormat = new Intl.DateTimeFormat("en-GB", {
 });
 
 function metricLabel(metric: AudienceMetric): string {
+  if (metric.timeframe === "lifetime") return "Channel views (all time)";
   if (metric.sourceMetric === "page_media_view") return "Content views";
   if (metric.sourceMetric === "page_post_engagements") return "Content engagements";
   return metricLabels[metric.name];
@@ -25,6 +25,8 @@ function metricLabel(metric: AudienceMetric): string {
 
 function metricDescription(metric: AudienceMetric): string {
   switch (metric.sourceMetric) {
+    case "youtube.channel.subscriberCount": return "Public subscriber count, rounded by YouTube to three significant figures.";
+    case "youtube.channel.viewCount": return "YouTube-reported total channel views across video formats.";
     case "followers_count": return "Account total at synchronization.";
     case "page_media_view": return "Times content was played or displayed.";
     case "reach": return "Unique accounts reached over this reporting period.";
@@ -40,7 +42,9 @@ function MetricPeriod({ metric, syncedAt }: {
 }) {
   return (
     <span className="metric-period">
-      {metric.period
+      {metric.timeframe === "lifetime"
+        ? `All time · As of ${timeFormat.format(new Date(syncedAt))} UTC`
+        : metric.period
         ? `${dateFormat.format(new Date(metric.period.start))} – ${dateFormat.format(new Date(metric.period.end))} · UTC`
         : `As of ${timeFormat.format(new Date(syncedAt))} UTC`}
     </span>
@@ -68,7 +72,10 @@ function PlatformMetrics({ snapshot, compact }: {
         {metrics.map((metric) => (
           <div key={metric.name}>
             <dt>{metricLabel(metric)}</dt>
-            <dd>{new Intl.NumberFormat("en-GB").format(metric.value)}</dd>
+            <dd>
+              {metric.sourceMetric === "youtube.channel.subscriberCount" && metric.value >= 1000 ? "≈ " : ""}
+              {new Intl.NumberFormat("en-GB").format(metric.value)}
+            </dd>
             <dd><MetricPeriod metric={metric} syncedAt={snapshot.syncedAt} /></dd>
             {!compact && <dd className="metric-source">{metricDescription(metric)}</dd>}
           </div>
@@ -122,7 +129,7 @@ export function AudienceDashboard({ snapshot, compact = false }: {
 }) {
   return (
     <div className={compact ? "audience-grid audience-grid-compact" : "audience-grid"}>
-      {platforms.map((platform) => {
+      {siteConfig.audiencePlatforms.map((platform) => {
         const social = siteConfig.socialLinks.find((link) => link.platform === platform);
         const data = snapshot?.platforms.find((entry) => entry.platform === platform);
         return (

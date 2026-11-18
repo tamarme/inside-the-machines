@@ -30,7 +30,8 @@ It never falls back to global or other-project credentials.
 | Instagram | `views`, `reach`, `total_interactions` | Provider aggregate over the requested 30-day window |
 | Facebook | `followers_count` | Page followers; never substitute Page likes |
 | Facebook | `page_media_view`, `page_post_engagements` | Latest provider-reported rolling 28-day window |
-| YouTube / TikTok | No direct integration | Unavailable until an approved source supplies actual data |
+| YouTube | Subscribers and channel views | Verified public subscriber count and all-time channel view total |
+| TikTok | Temporarily hidden | Retained in the schema for future activation |
 
 Each optional insight is requested separately. Permission-denied, deprecated, absent,
 or invalid responses omit that metric while retaining available metrics.
@@ -158,10 +159,10 @@ reporting periods, freshness, correct rolling-window selection, unique-reach han
 account mismatch, denied insights, credential placement, oversized responses,
 concurrency, and failure backoff using synthetic fixtures. No live provider is called.
 
-Live Meta access and current permission availability could not be verified in this
-execution environment because outbound network access failed. Confirm those on an
-authorized development host before claiming the dashboard is connected.
-YouTube/TikTok integration and richer top-content data remain future work.
+Meta statistics were verified on the deployed site on 2026-11-18. Live YouTube access
+still needs verification after deployment; local outbound requests and browser access
+to the local preview were blocked in this execution environment. YouTube is described
+below; richer top-content data remains future work.
 
 Official references:
 
@@ -170,3 +171,53 @@ Official references:
 - https://developers.facebook.com/docs/graph-api/reference/page/
 - https://developers.facebook.com/docs/graph-api/reference/insights/
 - https://developers.facebook.com/docs/insights/overview
+
+## YouTube public statistics and visible platforms
+
+The website can now reuse the existing Inside the Machine YouTube OAuth connection,
+independently of Meta. Set only these additional server variables:
+
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `YOUTUBE_INSIDE_THE_MACHINE_CHANNEL_ID`
+- `YOUTUBE_INSIDE_THE_MACHINE_REFRESH_TOKEN`
+
+The shared Google OAuth client is reused with only Inside the Machine's channel
+and refresh token. Other projects' channel tokens are not copied. No new OAuth
+grant, scopes, upload request, account mutation, Athena change, or token revocation
+is performed. The existing token is exchanged server-side; access tokens and raw
+provider responses are never cached or rendered.
+
+`channels.list(mine=true)` verifies that the credential owns the configured channel.
+The returned ID and custom handle must match that channel and the official website
+YouTube link. Hidden subscriber counts are omitted. Public counts are parsed from
+the provider's integer strings; malformed/missing values are never converted to zero.
+
+The dashboard shows subscribers and total channel views. YouTube rounds public
+subscriber counts down to three significant figures; the UI uses an approximation
+marker from 1,000 subscribers. Channel views are explicitly **all time**, not a
+30-day total or unique audience. No private YouTube Analytics report is requested.
+
+The version 1 metric contract additionally permits `timeframe: "lifetime"` only for
+YouTube `views` with source `youtube.channel.viewCount` and no reporting period.
+This field is retained by validation. Other performance metrics still require a
+reporting period. Lifetime channel totals cannot be used as top-content metrics.
+
+YouTube has its own one-hour success cache and one-minute cold-failure backoff.
+A YouTube failure does not hide successful Meta snapshots. The optional Athena
+aggregate endpoint remains an alternative to all direct provider reads.
+
+`siteConfig.audiencePlatforms` controls the media-kit cards. It currently contains
+Instagram, Facebook, and YouTube. TikTok is temporarily hidden from the audience
+overview and insights dashboard, while its existing social follow link remains
+available. The schema still accepts it for future activation.
+
+Tests additionally cover channel/handle mismatch, hidden and malformed counts,
+expired authorization, credential placement, existing refresh grant, and the
+distinction between lifetime and period metrics.
+
+References:
+
+- https://developers.google.com/youtube/v3/docs/channels/list
+- https://developers.google.com/youtube/v3/docs/channels
+- https://developers.google.com/identity/protocols/oauth2/web-server#offline

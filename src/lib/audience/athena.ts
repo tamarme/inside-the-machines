@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { unstable_cache } from "next/cache";
 import { parseAudienceSnapshot, type AudienceSnapshot } from "./contract";
 import { getMetaAudience } from "./meta";
+import { getYouTubeAudience } from "./youtube";
 import { withProviderBackoff } from "./provider-request";
 
 export interface AudienceResult {
@@ -34,7 +35,18 @@ async function readLimitedJson(response: Response): Promise<unknown> {
 export async function getAudienceInsights(): Promise<AudienceResult> {
   const endpoint = process.env.ATHENA_PUBLIC_METRICS_URL;
   const token = process.env.ATHENA_PUBLIC_METRICS_TOKEN;
-  if (!endpoint && !token) return { snapshot: await getMetaAudience() };
+  if (!endpoint && !token) {
+    const [meta, youtube] = await Promise.allSettled([getMetaAudience(), getYouTubeAudience()]);
+    const platforms = [
+      ...(meta.status === "fulfilled" ? meta.value?.platforms ?? [] : []),
+      ...(youtube.status === "fulfilled" && youtube.value ? [youtube.value] : []),
+    ];
+    return {
+      snapshot: platforms.length > 0
+        ? { version: 1, brand: "inside-the-machine", approvedForPublic: true, platforms }
+        : null,
+    };
+  }
   if (!endpoint || !token) return { snapshot: null };
 
   try {
