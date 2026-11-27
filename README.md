@@ -61,7 +61,7 @@ Navigation is centralized in site.ts and works from every route. The header rema
 
 ## Audience statistics
 
-See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and live checks. Direct Meta mode uses owner-authorized Inside the Machine credentials to read followers, supported account insights, and up to five leading follower countries per platform. The website can use a restricted YouTube Data API key for public subscriber counts, all-time channel views, and public video rankings independently of Athena's OAuth connection. The insights page ranks individual public videos by lifetime views among eligible videos in up to 50 recent posts or uploads per platform. It shows three previews per platform, expandable to five. TikTok is temporarily hidden from the media-kit cards.
+See [audience integration](docs/audience-integration.md) for environment variables, the Athena audit, security boundaries, metric meanings, caching, and live checks. Direct Meta mode uses owner-authorized Inside the Machine credentials to read followers, supported account insights, and follower counts by country. The site shows each reported country's share of total followers, with the top five shown first and an expandable list for the rest. The website can use a restricted YouTube Data API key for public subscriber counts, all-time channel views, and public video rankings independently of Athena's OAuth connection. The insights page ranks individual public videos by lifetime views among eligible videos in up to 50 recent posts or uploads per platform. It shows three previews per platform, expandable to five. TikTok is temporarily hidden from the media-kit cards.
 
 The optional Athena adapter accepts only approved aggregate snapshots. It does not expose Athena's private analytics API. Athena remains unchanged; the website deploys through its own independent service.
 
@@ -75,6 +75,9 @@ The optional Athena adapter accepts only approved aggregate snapshots. It does n
 | About and contact copy                                | Corresponding files in `src/components/home/` |
 | Colors, spacing, typography, responsive layout        | `src/app/globals.css`                         |
 | Fonts and SEO metadata                                | `src/app/layout.tsx`                          |
+| Browser tab icon for all pages                        | `src/app/favicon.ico`                         |
+
+The favicon uses the studio artwork from `public/logo.png`, resized into 16, 32, and 48 px ICO frames. Next.js adds the favicon link across the site from the root app directory.
 
 The four official Instagram, YouTube, Facebook, and TikTok URLs live in `siteConfig.socialLinks` in `src/config/site.ts`. Each entry has a platform, display label, and URL. Update URLs there, not in components. `SocialLinks` maps each platform to a recognizable Simple Icons mark from `react-icons/si`, rendered on the server. Links have 44px targets, accessible names, orange focus/hover feedback, and open in a new tab. The email remains the primary contact action and is used consistently for every `mailto:` link.
 
