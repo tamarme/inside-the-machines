@@ -15,7 +15,7 @@ async function typeScriptModuleUrl(relativePath, imports = {}) {
   return `data:text/javascript;base64,${Buffer.from(moduleSource).toString("base64")}`;
 }
 const contractUrl = await typeScriptModuleUrl("../src/lib/audience/contract.ts");
-const { parseAudienceSnapshot, isStale } = await import(contractUrl);
+const { parseAudienceSnapshot, isStale, totalFollowersForCountryShares } = await import(contractUrl);
 const { collectMetaPlatform, facebookWindow, instagramTotal } = await import(await typeScriptModuleUrl(
   "../src/lib/audience/meta-client.ts", { "./contract": contractUrl },
 ));
@@ -43,7 +43,7 @@ test("public contract preserves real zero and discards private fields at every l
   assert.equal("accountId" in parsed.platforms[0], false);
   assert.equal("privateRevenue" in parsed.platforms[0].metrics[0], false);
 });
-test("the public contract ranks five unique Meta follower countries and drops unapproved fields", () => {
+test("the public contract ranks every reported Meta follower country and drops unapproved fields", () => {
   const value = fixture();
   value.platforms[0].countryFollowers = [
     { countryCode: "US", followers: 200, privateField: "hidden" },
@@ -53,10 +53,23 @@ test("the public contract ranks five unique Meta follower countries and drops un
     { countryCode: "US", followers: 1 }, { countryCode: "JP", followers: -1 },
   ];
   const countries = parseAudienceSnapshot(value, now).platforms[0].countryFollowers;
-  assert.deepEqual(countries.map(row => row.countryCode), ["US", "DE", "CZ", "GB", "BR"]);
+  assert.deepEqual(countries.map(row => row.countryCode), ["US", "DE", "CZ", "GB", "BR", "AT"]);
   assert.deepEqual(countries[0], { countryCode: "US", followers: 200 });
   value.platforms[0].platform = "tiktok";
   assert.equal(parseAudienceSnapshot(value, now).platforms[0].countryFollowers, undefined);
+});
+test("country shares use all account followers and are omitted when the total is unavailable or inconsistent", () => {
+  const value = fixture();
+  const input = value.platforms[0];
+  input.countryFollowers = [{ countryCode: "US", followers: 200 }, { countryCode: "DE", followers: 100 }];
+  const total = () => totalFollowersForCountryShares(parseAudienceSnapshot(value, now).platforms[0]);
+  assert.equal(total(), undefined);
+  input.metrics[0].value = 1000;
+  assert.equal(total(), 1000);
+  input.metrics[0].value = 250;
+  assert.equal(total(), undefined);
+  input.metrics = [{ name: "reach", sourceMetric: "reach", value: 1000, period }];
+  assert.equal(total(), undefined);
 });
 test("public contract fails closed for unapproved, wrong-brand, duplicate, invalid, or future data", () => {
   const edits = [

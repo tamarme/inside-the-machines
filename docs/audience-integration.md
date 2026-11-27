@@ -28,10 +28,10 @@ It never falls back to global or other-project credentials.
 | --- | --- | --- |
 | Instagram | `followers_count` | Account total at synchronization |
 | Instagram | `views`, `reach`, `total_interactions` | Provider aggregate over the requested 30-day window |
-| Instagram | `follower_demographics` by country | Leading follower countries in the provider's 30-day demographics report |
+| Instagram | `follower_demographics` by country | Followers by country in the latest demographics report |
 | Facebook | `followers_count` | Page followers; never substitute Page likes |
 | Facebook | `page_media_view`, `page_post_engagements` | Latest provider-reported rolling 28-day window |
-| Facebook | `page_follows_country` | Leading follower countries in the latest available daily follower snapshot |
+| Facebook | `page_follows_country` | Followers by country in the latest available daily follower snapshot |
 | YouTube | Subscribers and channel views | Verified public subscriber count and all-time channel view total |
 | TikTok | Temporarily hidden | Retained in the schema for future activation |
 
@@ -116,7 +116,7 @@ Each platform snapshot:
 - `syncedAt`: last successful collection timestamp, UTC ISO format
 - `metrics`: unique approved metric entries, at least one
 - `topContent`: up to five ranked videos or legacy project entries. See Sponsor media kit and video rankings below.
-- `countryFollowers`: optional Meta-only array of `{ countryCode, followers }` entries. The validator keeps up to five unique recognized two-letter country or territory codes with positive counts, ranked by reported follower count.
+- `countryFollowers`: optional Meta-only array of `{ countryCode, followers }` entries. The validator keeps unique recognized two-letter country or territory codes with positive counts, ranked by reported follower count.
 
 Each metric:
 
@@ -232,15 +232,20 @@ References:
 - https://developers.google.com/identity/protocols/oauth2#expiration
 - https://developers.google.com/identity/protocols/oauth2/web-server#offline
 
-## Top follower countries
+## Follower geography
 
-The detailed Instagram and Facebook panels show up to five countries from each
-platform's own follower demographics. Instagram requests `follower_demographics`
-with a country breakdown and `this_month` timeframe. Facebook requests daily
-`page_follows_country` points and uses the latest complete point in the last seven days.
-The site displays provider counts and omits empty, denied, or unsupported reports.
-These counts describe followers. The public YouTube Data API has no country breakdown,
-and the site does not request owner-authorized YouTube Analytics for public display.
+The detailed Instagram and Facebook panels show the five leading countries first.
+An expandable list displays every other country the provider reports. Instagram
+requests `follower_demographics` with `period=lifetime` and Meta's `this_month`
+reporting timeframe. Facebook uses the latest `page_follows_country` snapshot
+available in the last seven days. Both metrics describe the provider's follower
+demographics at reporting time.
+
+Country counts are divided by the platform's total follower count, with the reported
+count shown beside each share. Meta may omit some locations, so reported shares can
+sum to less than 100%. Counts are shown alone when the account total is missing,
+zero, or smaller than the sum of the reported counts. Empty, denied, or unsupported
+geography reports are omitted. The public YouTube Data API has no country breakdown.
 
 ## Sponsor media kit and video rankings
 
