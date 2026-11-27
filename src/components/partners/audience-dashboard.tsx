@@ -1,7 +1,7 @@
 import { siteConfig } from "@/config/site";
+import { AudienceCountries } from "./audience-countries";
 import { RankedVideos } from "./ranked-videos";
 import {
-  countryName,
   isStale,
   metricLabels,
   type AudienceMetric,
@@ -76,20 +76,7 @@ function PlatformMetrics({ snapshot, compact }: {
               {timeFormat.format(new Date(snapshot.syncedAt))} UTC
             </time>
           </p>
-          {!!snapshot.countryFollowers?.length && (
-            <section className="audience-countries">
-              <h4>Top countries by followers</h4>
-              <p>{snapshot.platform === "instagram" ? "Instagram’s 30-day demographics report" : "Latest Facebook demographics report"}</p>
-              <ol role="list">
-                {snapshot.countryFollowers.map(({ countryCode, followers }) => (
-                  <li key={countryCode}>
-                    <span>{countryName(countryCode)}</span>
-                    <span>{numberFormat.format(followers)}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
+          <AudienceCountries snapshot={snapshot} />
           <RankedVideos snapshot={snapshot} />
         </>
       )}
