@@ -1,4 +1,4 @@
-import type { AudienceMetric, PlatformSnapshot, ReportingPeriod, TopContent } from "./contract";
+import { rankCountryFollowers, type AudienceMetric, type CountryFollowers, type PlatformSnapshot, type ReportingPeriod, type TopContent } from "./contract";
 
 export interface MetaConfig {
   pageId: string;
@@ -95,6 +95,45 @@ export function facebookWindow(
     value: latest.value,
     period: { start: new Date(latest.end - 28 * 86400_000).toISOString(), end: new Date(latest.end).toISOString() },
   };
+}
+
+async function metaCountryFollowers(
+  config: MetaConfig,
+  platform: MetaPlatform,
+  fetcher: typeof fetch,
+  now: number,
+): Promise<CountryFollowers[]> {
+  if (platform === "instagram") {
+    const data = await graphRead(config, `${config.instagramId}/insights`, {
+      metric: "follower_demographics", period: "lifetime", metric_type: "total_value",
+      breakdown: "country", timeframe: "this_month",
+    }, fetcher);
+    if (!Array.isArray(data.data)) return [];
+    const report = data.data.find((item: unknown) => record(item) && item.name === "follower_demographics" && item.period === "lifetime");
+    if (!record(report) || !record(report.total_value) || !Array.isArray(report.total_value.breakdowns)) return [];
+    const breakdown = report.total_value.breakdowns.find((item: unknown) =>
+      record(item) && Array.isArray(item.dimension_keys) && item.dimension_keys.length === 1 && item.dimension_keys[0] === "country");
+    if (!record(breakdown) || !Array.isArray(breakdown.results)) return [];
+    return rankCountryFollowers(breakdown.results.flatMap((row: unknown) =>
+      record(row) && Array.isArray(row.dimension_values) && row.dimension_values.length === 1
+        ? [{ countryCode: row.dimension_values[0], followers: row.value }]
+        : []));
+  }
+
+  const data = await graphRead(config, `${config.pageId}/insights`, {
+    metric: "page_follows_country", period: "day",
+    since: String(Math.floor((now - 7 * 86400_000) / 1000)), until: String(Math.floor(now / 1000)),
+  }, fetcher);
+  if (!Array.isArray(data.data)) return [];
+  const report = data.data.find((item: unknown) => record(item) && item.name === "page_follows_country" && item.period === "day");
+  if (!record(report) || !Array.isArray(report.values)) return [];
+  // Each point is a snapshot of followers by country. Use the newest available point as a whole.
+  const latest = report.values.flatMap((point: unknown) => {
+    if (!record(point) || !record(point.value) || typeof point.end_time !== "string") return [];
+    const end = Date.parse(point.end_time);
+    return end <= now && end > now - 7 * 86400_000 ? [{ end, value: point.value }] : [];
+  }).sort((a, b) => b.end - a.end)[0];
+  return latest ? rankCountryFollowers(Object.entries(latest.value).map(([countryCode, followers]) => ({ countryCode, followers }))) : [];
 }
 
 async function topMetaVideos(config: MetaConfig, platform: MetaPlatform, fetcher: typeof fetch): Promise<TopContent[]> {
@@ -197,6 +236,9 @@ export async function collectMetaPlatform(
     metrics.push(...results.filter((metric): metric is AudienceMetric => metric !== null));
   }
   if (metrics.length === 0) return failure();
-  const topContent = await topMetaVideos(config, platform, fetcher).catch(() => []);
-  return { platform, syncedAt: new Date(now).toISOString(), metrics, topContent, rankingScope: "recent50" };
+  const [topContent, countryFollowers] = await Promise.all([
+    topMetaVideos(config, platform, fetcher).catch(() => []),
+    metaCountryFollowers(config, platform, fetcher, now).catch(() => []),
+  ]);
+  return { platform, syncedAt: new Date(now).toISOString(), metrics, topContent, rankingScope: "recent50", countryFollowers };
 }

@@ -24,12 +24,17 @@ export interface TopContent {
   publishedAt?: string;
   metric: AudienceMetric;
 }
+export interface CountryFollowers {
+  countryCode: string;
+  followers: number;
+}
 export interface PlatformSnapshot {
   platform: Platform;
   syncedAt: string;
   metrics: AudienceMetric[];
   topContent: TopContent[];
   rankingScope?: "recent50";
+  countryFollowers?: CountryFollowers[];
 }
 export interface AudienceSnapshot {
   version: 1;
@@ -49,6 +54,27 @@ export const metricLabels: Record<MetricName, string> = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const countryNames = new Intl.DisplayNames("en-GB", { type: "region", fallback: "none" });
+
+export function countryName(code: string): string | undefined {
+  if (!/^[A-Z]{2}$/.test(code) || code === "ZZ") return;
+  return countryNames.of(code);
+}
+
+export function rankCountryFollowers(rows: readonly unknown[]): CountryFollowers[] {
+  const ranked: CountryFollowers[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    const { countryCode, followers } = row;
+    if (typeof countryCode !== "string" || !countryName(countryCode) || seen.has(countryCode) ||
+        typeof followers !== "number" || !Number.isSafeInteger(followers) || followers <= 0) continue;
+    seen.add(countryCode);
+    ranked.push({ countryCode, followers });
+  }
+  return ranked.sort((a, b) => b.followers - a.followers || a.countryCode.localeCompare(b.countryCode)).slice(0, 5);
 }
 function requireValid(condition: unknown): asserts condition {
   if (!condition) throw new Error("Invalid public audience snapshot");
@@ -145,7 +171,14 @@ export function parseAudienceSnapshot(value: unknown, now = Date.now()): Audienc
         publishedAt: item.publishedAt === undefined ? undefined : timestamp(item.publishedAt, now),
         metric: topMetric };
     });
-    return { platform, syncedAt, metrics, topContent, ...(entry.rankingScope === "recent50" ? { rankingScope: "recent50" as const } : {}) };
+    const countryFollowers = (platform === "instagram" || platform === "facebook") && Array.isArray(entry.countryFollowers)
+      ? rankCountryFollowers(entry.countryFollowers)
+      : [];
+    return {
+      platform, syncedAt, metrics, topContent,
+      ...(entry.rankingScope === "recent50" ? { rankingScope: "recent50" as const } : {}),
+      ...(countryFollowers.length ? { countryFollowers } : {}),
+    };
   });
   return { version: 1, brand: "inside-the-machine", approvedForPublic: true, platforms: parsed };
 }

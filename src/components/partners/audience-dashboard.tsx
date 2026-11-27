@@ -1,6 +1,7 @@
 import { siteConfig } from "@/config/site";
 import { RankedVideos } from "./ranked-videos";
 import {
+  countryName,
   isStale,
   metricLabels,
   type AudienceMetric,
@@ -8,6 +9,7 @@ import {
   type PlatformSnapshot,
 } from "@/lib/audience/contract";
 
+const numberFormat = new Intl.NumberFormat("en-GB");
 const dateFormat = new Intl.DateTimeFormat("en-GB", {
   day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
 });
@@ -57,7 +59,7 @@ function PlatformMetrics({ snapshot, compact }: {
             <dt>{metricLabel(metric)}</dt>
             <dd>
               {metric.sourceMetric === "youtube.channel.subscriberCount" && metric.value >= 1000 ? "≈ " : ""}
-              {new Intl.NumberFormat("en-GB").format(metric.value)}
+              {numberFormat.format(metric.value)}
             </dd>
             <dd><MetricPeriod metric={metric} syncedAt={snapshot.syncedAt} /></dd>
           </div>
@@ -74,6 +76,20 @@ function PlatformMetrics({ snapshot, compact }: {
               {timeFormat.format(new Date(snapshot.syncedAt))} UTC
             </time>
           </p>
+          {!!snapshot.countryFollowers?.length && (
+            <section className="audience-countries">
+              <h4>Top countries by followers</h4>
+              <p>{snapshot.platform === "instagram" ? "Instagram’s 30-day demographics report" : "Latest Facebook demographics report"}</p>
+              <ol role="list">
+                {snapshot.countryFollowers.map(({ countryCode, followers }) => (
+                  <li key={countryCode}>
+                    <span>{countryName(countryCode)}</span>
+                    <span>{numberFormat.format(followers)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           <RankedVideos snapshot={snapshot} />
         </>
       )}
