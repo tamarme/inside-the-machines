@@ -14,7 +14,7 @@ Deployment must configure the corresponding server variables only on the indepen
 
 Two mutually exclusive sources are supported:
 
-1. **Direct Meta reads** when neither Athena endpoint variable is configured.
+1. **Direct Meta and YouTube reads** when neither Athena endpoint variable is configured.
 2. **Approved Athena aggregates** when both endpoint variables are configured.
    An incomplete/invalid Athena configuration fails closed rather than silently
    switching credentials or providers.
@@ -28,8 +28,10 @@ It never falls back to global or other-project credentials.
 | --- | --- | --- |
 | Instagram | `followers_count` | Account total at synchronization |
 | Instagram | `views`, `reach`, `total_interactions` | Provider aggregate over the requested 30-day window |
+| Instagram | `follower_demographics` by country | Leading follower countries in the provider's 30-day demographics report |
 | Facebook | `followers_count` | Page followers; never substitute Page likes |
 | Facebook | `page_media_view`, `page_post_engagements` | Latest provider-reported rolling 28-day window |
+| Facebook | `page_follows_country` | Leading follower countries in the latest available daily follower snapshot |
 | YouTube | Subscribers and channel views | Verified public subscriber count and all-time channel view total |
 | TikTok | Temporarily hidden | Retained in the schema for future activation |
 
@@ -114,6 +116,7 @@ Each platform snapshot:
 - `syncedAt`: last successful collection timestamp, UTC ISO format
 - `metrics`: unique approved metric entries, at least one
 - `topContent`: up to five ranked videos or legacy project entries. See Sponsor media kit and video rankings below.
+- `countryFollowers`: optional Meta-only array of `{ countryCode, followers }` entries. The validator keeps up to five unique recognized two-letter country or territory codes with positive counts, ranked by reported follower count.
 
 Each metric:
 
@@ -125,7 +128,7 @@ Each metric:
 - Subscribers apply only to YouTube; followers apply to the other three platforms.
 
 Only explicit allowlisted fields are reconstructed. Arbitrary URLs, credentials,
-private demographics, source payloads, and unknown fields are discarded.
+demographic fields outside the approved country aggregates, source payloads, and unknown fields are discarded.
 The contract is a presentation boundary, not an assertion that every official API
 supports every field. An upstream adapter must verify each metric's actual meaning,
 permissions, coverage, units, and timeframe before approving it.
@@ -170,24 +173,33 @@ Official references:
 
 ## YouTube public statistics and visible platforms
 
-The website can now reuse the existing Inside the Machine YouTube OAuth connection,
-independently of Meta. Set only these additional server variables:
+For public subscriber counts, channel views, and video rankings, configure a
+server-side key restricted to YouTube Data API v3 in Google Cloud:
+
+- `YOUTUBE_DATA_API_KEY`
+- `YOUTUBE_INSIDE_THE_MACHINE_CHANNEL_ID`
+
+The site sends the key in the `X-Goog-Api-Key` header and reads the channel by ID.
+If a key is configured, the site uses it as its sole YouTube credential. It needs
+no OAuth consent or token refresh, and is independent of Athena's account authorization.
+
+If the key is absent, the website supports its existing channel OAuth configuration
+using `YOUTUBE_INSIDE_THE_MACHINE_CHANNEL_ID` and these additional server variables:
 
 - `YOUTUBE_CLIENT_ID`
 - `YOUTUBE_CLIENT_SECRET`
-- `YOUTUBE_INSIDE_THE_MACHINE_CHANNEL_ID`
 - `YOUTUBE_INSIDE_THE_MACHINE_REFRESH_TOKEN`
 
-The shared Google OAuth client is reused with only Inside the Machine's channel
-and refresh token. Other projects' channel tokens are not copied. No new OAuth
-grant, scopes, upload request, account mutation, Athena change, or token revocation
-is performed. The existing token is exchanged server-side; access tokens and raw
-provider responses are never cached or rendered.
+Google issues seven-day refresh tokens for external OAuth apps in Testing with
+YouTube scopes. For a production OAuth setup, use an In production consent screen
+and obtain a new offline refresh token for this channel and the matching OAuth client.
+The website exchanges the token server-side. Access tokens and raw provider responses
+stay outside the cache and HTML.
 
-`channels.list(mine=true)` verifies that the credential owns the configured channel.
-The returned ID and custom handle must match that channel and the official website
-YouTube link. Hidden subscriber counts are omitted. Public counts are parsed from
-the provider's integer strings; malformed/missing values are never converted to zero.
+In OAuth mode, `channels.list(mine=true)` verifies that the credential owns the
+configured channel. Both modes require the returned ID and custom handle to match
+the configured channel and the official website YouTube link. Hidden subscriber
+counts are omitted. Public counts are parsed from the provider's integer strings.
 
 The dashboard shows subscribers and total channel views. YouTube rounds public
 subscriber counts down to three significant figures; the UI uses an approximation
@@ -216,7 +228,19 @@ References:
 
 - https://developers.google.com/youtube/v3/docs/channels/list
 - https://developers.google.com/youtube/v3/docs/channels
+- https://developers.google.com/youtube/data/guides/authentication
+- https://developers.google.com/identity/protocols/oauth2#expiration
 - https://developers.google.com/identity/protocols/oauth2/web-server#offline
+
+## Top follower countries
+
+The detailed Instagram and Facebook panels show up to five countries from each
+platform's own follower demographics. Instagram requests `follower_demographics`
+with a country breakdown and `this_month` timeframe. Facebook requests daily
+`page_follows_country` points and uses the latest complete point in the last seven days.
+The site displays provider counts and omits empty, denied, or unsupported reports.
+These counts describe followers. The public YouTube Data API has no country breakdown,
+and the site does not request owner-authorized YouTube Analytics for public display.
 
 ## Sponsor media kit and video rankings
 
