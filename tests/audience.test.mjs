@@ -3,16 +3,23 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import ts from "typescript";
 
-async function loadTypeScript(relativePath) {
+async function typeScriptModuleUrl(relativePath, imports = {}) {
   const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   });
-  return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
+  let moduleSource = outputText;
+  for (const [specifier, url] of Object.entries(imports)) {
+    moduleSource = moduleSource.replace(`from ${JSON.stringify(specifier)}`, `from ${JSON.stringify(url)}`);
+  }
+  return `data:text/javascript;base64,${Buffer.from(moduleSource).toString("base64")}`;
 }
-const { parseAudienceSnapshot, isStale } = await loadTypeScript("../src/lib/audience/contract.ts");
-const { collectMetaPlatform, facebookWindow, instagramTotal } = await loadTypeScript("../src/lib/audience/meta-client.ts");
-const { withProviderBackoff } = await loadTypeScript("../src/lib/audience/provider-request.ts");
+const contractUrl = await typeScriptModuleUrl("../src/lib/audience/contract.ts");
+const { parseAudienceSnapshot, isStale } = await import(contractUrl);
+const { collectMetaPlatform, facebookWindow, instagramTotal } = await import(await typeScriptModuleUrl(
+  "../src/lib/audience/meta-client.ts", { "./contract": contractUrl },
+));
+const { withProviderBackoff } = await import(await typeScriptModuleUrl("../src/lib/audience/provider-request.ts"));
 const now = Date.parse("2026-11-18T12:00:00Z");
 const period = { start: "2026-10-19T00:00:00Z", end: "2026-11-18T00:00:00Z" };
 
@@ -35,6 +42,21 @@ test("public contract preserves real zero and discards private fields at every l
   assert.equal(JSON.stringify(parsed).includes("DO_NOT_EXPOSE"), false);
   assert.equal("accountId" in parsed.platforms[0], false);
   assert.equal("privateRevenue" in parsed.platforms[0].metrics[0], false);
+});
+test("the public contract ranks five unique Meta follower countries and drops unapproved fields", () => {
+  const value = fixture();
+  value.platforms[0].countryFollowers = [
+    { countryCode: "US", followers: 200, privateField: "hidden" },
+    { countryCode: "DE", followers: 100 }, { countryCode: "CZ", followers: 80 },
+    { countryCode: "GB", followers: 60 }, { countryCode: "BR", followers: 50 },
+    { countryCode: "AT", followers: 20 }, { countryCode: "ZZ", followers: 500 },
+    { countryCode: "US", followers: 1 }, { countryCode: "JP", followers: -1 },
+  ];
+  const countries = parseAudienceSnapshot(value, now).platforms[0].countryFollowers;
+  assert.deepEqual(countries.map(row => row.countryCode), ["US", "DE", "CZ", "GB", "BR"]);
+  assert.deepEqual(countries[0], { countryCode: "US", followers: 200 });
+  value.platforms[0].platform = "tiktok";
+  assert.equal(parseAudienceSnapshot(value, now).platforms[0].countryFollowers, undefined);
 });
 test("public contract fails closed for unapproved, wrong-brand, duplicate, invalid, or future data", () => {
   const edits = [
@@ -120,6 +142,37 @@ test("wrong-account responses fail before any analytics are requested", async ()
   }, now));
   assert.equal(calls, 1);
 });
+test("Meta reads follower country breakdowns from the matched account and uses only the latest Facebook point", async () => {
+  const mock = async (input) => {
+    const url = new URL(input);
+    const fields = url.searchParams.get("fields");
+    if (fields === "id,instagram_business_account") return json({ id: "123", instagram_business_account: { id: "456" } });
+    if (fields === "id,username") return json({ id: "456", username: config.instagramUsername });
+    if (fields === "id,followers_count") return json({ id: url.pathname.split("/").at(-1), followers_count: 1200 });
+    if (url.searchParams.get("metric") === "follower_demographics") {
+      assert.equal(url.pathname, "/v26.0/456/insights");
+      assert.equal(url.searchParams.get("breakdown"), "country");
+      assert.equal(url.searchParams.get("timeframe"), "this_month");
+      return json({ data: [{ name: "follower_demographics", period: "lifetime", total_value: { breakdowns: [
+        { dimension_keys: ["country"], results: [{ dimension_values: ["DE"], value: 120 }, { dimension_values: ["US"], value: 210 }] },
+      ] } }] });
+    }
+    if (url.searchParams.get("metric") === "page_follows_country") {
+      assert.equal(url.pathname, "/v26.0/123/insights");
+      assert.equal(url.searchParams.get("period"), "day");
+      return json({ data: [{ name: "page_follows_country", period: "day", values: [
+        { end_time: "2026-11-16T08:00:00+0000", value: { US: 80, DE: 190 } },
+        { end_time: "2026-11-17T08:00:00+0000", value: { US: 130, DE: 110 } },
+      ] }] });
+    }
+    return json({ data: [] });
+  };
+  const [instagram, facebook] = await Promise.all([
+    collectMetaPlatform(config, "instagram", mock, now), collectMetaPlatform(config, "facebook", mock, now),
+  ]);
+  assert.deepEqual(instagram.countryFollowers, [{ countryCode: "US", followers: 210 }, { countryCode: "DE", followers: 120 }]);
+  assert.deepEqual(facebook.countryFollowers, [{ countryCode: "US", followers: 130 }, { countryCode: "DE", followers: 110 }]);
+});
 test("oversized provider responses fail closed without leaking the body", async () => {
   await assert.rejects(() => collectMetaPlatform(config, "instagram", async () =>
     json({ private: "x".repeat(140 * 1024) }), now), /Audience provider unavailable/);
@@ -136,7 +189,7 @@ test("concurrent requests share one provider read and cold failures back off", a
   assert.equal(failures, 1);
 });
 
-const { collectYouTubeAudience } = await loadTypeScript("../src/lib/audience/youtube-client.ts");
+const { collectYouTubeAudience } = await import(await typeScriptModuleUrl("../src/lib/audience/youtube-client.ts"));
 const youtubeConfig = {
   channelId: "UC" + "a".repeat(22), handle: "@inside.the.machines",
   clientId: "TEST_CLIENT", clientSecret: "TEST_SECRET", refreshToken: "TEST_REFRESH",
@@ -183,6 +236,33 @@ test("YouTube reuses existing OAuth and returns only verified public aggregates"
 test("YouTube rejects a different channel or handle even with valid OAuth", async () => {
   await assert.rejects(() => collectYouTubeAudience(youtubeConfig, youtubeFetcher(youtubeResponse({ id: "UC" + "b".repeat(22) })), now));
   await assert.rejects(() => collectYouTubeAudience(youtubeConfig, youtubeFetcher(youtubeResponse({ handle: "@another-channel" })), now));
+});
+test("a YouTube Data API key reads the public channel and its ranked public uploads without OAuth", async () => {
+  const { channelId, handle } = youtubeConfig;
+  const requests = [];
+  const videoId = "12345678901";
+  const result = await collectYouTubeAudience({ channelId, handle, apiKey: "TEST_API_KEY" }, async (input, init) => {
+    const url = new URL(input);
+    requests.push([url, init]);
+    if (url.pathname.endsWith("/channels")) {
+      assert.equal(url.searchParams.get("id"), channelId);
+      assert.equal(url.searchParams.has("mine"), false);
+      const response = youtubeResponse();
+      response.items[0].contentDetails = { relatedPlaylists: { uploads: "public-uploads" } };
+      return json(response);
+    }
+    if (url.pathname.endsWith("/playlistItems")) return json({ items: [{ contentDetails: { videoId } }] });
+    return json({ items: [{ id: videoId, snippet: { channelId, title: "Turbo" }, status: { privacyStatus: "public" }, statistics: { viewCount: "130" } }] });
+  }, now);
+  assert.equal(requests.length, 3);
+  assert.equal(result.metrics[0].value, 12300);
+  assert.equal(result.topContent[0].metric.value, 130);
+  for (const [url, init] of requests) {
+    assert.equal(url.origin, "https://www.googleapis.com");
+    assert.equal(url.href.includes("TEST_API_KEY"), false);
+    assert.equal(init.headers["X-Goog-Api-Key"], "TEST_API_KEY");
+    assert.equal(init.headers.Authorization, undefined);
+  }
 });
 test("hidden and invalid YouTube subscriber counts are omitted; real zero views remain zero", async () => {
   const result = await collectYouTubeAudience(youtubeConfig, youtubeFetcher(youtubeResponse({ hidden: true, views: "0" })), now);
