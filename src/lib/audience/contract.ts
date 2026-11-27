@@ -74,7 +74,16 @@ export function rankCountryFollowers(rows: readonly unknown[]): CountryFollowers
     seen.add(countryCode);
     ranked.push({ countryCode, followers });
   }
-  return ranked.sort((a, b) => b.followers - a.followers || a.countryCode.localeCompare(b.countryCode)).slice(0, 5);
+  return ranked.sort((a, b) => b.followers - a.followers || a.countryCode.localeCompare(b.countryCode));
+}
+
+export function totalFollowersForCountryShares(snapshot: PlatformSnapshot): number | undefined {
+  const totalFollowers = snapshot.metrics.find((metric) => metric.name === "followers")?.value;
+  if (!totalFollowers) return;
+
+  // Demographics can lag the account total. Keep counts if the snapshots disagree.
+  const reportedFollowers = snapshot.countryFollowers?.reduce((sum, country) => sum + country.followers, 0) ?? 0;
+  return reportedFollowers <= totalFollowers ? totalFollowers : undefined;
 }
 function requireValid(condition: unknown): asserts condition {
   if (!condition) throw new Error("Invalid public audience snapshot");
